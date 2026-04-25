@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bambulab-filament-tracker"
+version = "0.1.0"
+description = "Local Bambu Lab A1/AMS Lite filament usage tracker"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "paho-mqtt>=1.6,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+]
+
+[project.scripts]
+bambu-track = "bambulab_filament_tracker.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
