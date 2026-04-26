@@ -81,5 +81,5 @@ bambu-track sync-sheets
 
 - Keep the Mac awake.
 - Keep the Mac on the same local network as the printer.
-- Google Sheets is append-only. New unique rows are added to the bottom and old rows are preserved.
+- Google Sheets is a dashboard. Edits there are overwritten by the next sync.
 - Usage is recorded at print finish, not continuously during the print.
