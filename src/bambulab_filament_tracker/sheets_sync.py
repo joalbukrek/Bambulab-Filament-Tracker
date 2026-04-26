@@ -16,6 +16,7 @@ except ImportError:  # pragma: no cover - Python < 3.9 fallback.
 
 from .config import SheetsConfig
 from .db import Store, utc_now
+from .http import urlopen_with_certifi
 
 
 APPS_SCRIPT = r"""const SECRET = 'CHANGE_ME_TO_A_RANDOM_SECRET';
@@ -97,7 +98,7 @@ class SheetsSyncer:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with urlopen_with_certifi(request, timeout=20) as response:
                 response_body = response.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
             response_body = exc.read().decode("utf-8", errors="replace")

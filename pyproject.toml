@@ -9,6 +9,7 @@ description = "Local Bambu Lab A1/AMS Lite filament usage tracker"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
+  "certifi>=2024.2.2",
   "paho-mqtt>=1.6,<3",
 ]
 

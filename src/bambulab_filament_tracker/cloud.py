@@ -6,6 +6,8 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from .http import urlopen_with_certifi
+
 
 DEFAULT_BASE_URL = "https://api.bambulab.com/v1"
 
@@ -148,7 +150,7 @@ class BambuCloudClient:
             method=method,
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+            with urlopen_with_certifi(request, timeout=self.timeout_seconds) as response:
                 text = response.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
             error_text = exc.read().decode("utf-8", errors="replace")
