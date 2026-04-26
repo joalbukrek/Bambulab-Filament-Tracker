@@ -798,11 +798,159 @@ class Store:
                 )
             )
 
+    def merge_history_from(self, source_path: Path) -> Dict[str, int]:
+        source = Store(source_path)
+        imported_jobs = 0
+        skipped_jobs = 0
+        imported_slots = 0
+        imported_usage = 0
+        job_id_map: Dict[int, int] = {}
+        imported_source_job_ids = set()
+
+        with source.connect() as source_conn, self.connect() as target_conn:
+            source_jobs = source_conn.execute("SELECT * FROM print_jobs ORDER BY id").fetchall()
+            for job in source_jobs:
+                existing = None
+                if job["job_key"]:
+                    existing = target_conn.execute(
+                        "SELECT id FROM print_jobs WHERE job_key=?",
+                        (job["job_key"],),
+                    ).fetchone()
+                if existing is not None:
+                    job_id_map[int(job["id"])] = int(existing["id"])
+                    skipped_jobs += 1
+                    continue
+
+                cursor = target_conn.execute(
+                    """
+                    INSERT INTO print_jobs (
+                        printer_serial, job_key, subtask_name, gcode_file, plate_index,
+                        state, started_at, ended_at, raw_ams_mapping, observed_ams_slots,
+                        cloud_task_id, cloud_job_id, cloud_payload, completion_percent,
+                        usage_source, total_used_g, created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        job["printer_serial"],
+                        job["job_key"],
+                        job["subtask_name"],
+                        job["gcode_file"],
+                        job["plate_index"],
+                        job["state"],
+                        job["started_at"],
+                        job["ended_at"],
+                        job["raw_ams_mapping"],
+                        job["observed_ams_slots"],
+                        job["cloud_task_id"],
+                        job["cloud_job_id"],
+                        job["cloud_payload"],
+                        job["completion_percent"],
+                        job["usage_source"],
+                        job["total_used_g"],
+                        job["created_at"],
+                        job["updated_at"],
+                    ),
+                )
+                job_id_map[int(job["id"])] = int(cursor.lastrowid)
+                imported_source_job_ids.add(int(job["id"]))
+                imported_jobs += 1
+
+            for old_job_id, new_job_id in job_id_map.items():
+                if old_job_id not in imported_source_job_ids:
+                    continue
+                slots = source_conn.execute(
+                    "SELECT * FROM print_job_ams_slots WHERE print_job_id=? ORDER BY ams_slot",
+                    (old_job_id,),
+                ).fetchall()
+                for slot in slots:
+                    cursor = target_conn.execute(
+                        """
+                        INSERT OR IGNORE INTO print_job_ams_slots (
+                            print_job_id, ams_slot, spool_id, filament_name, material,
+                            color_hex, tray_uuid, tray_info_idx, first_seen_at, last_seen_at
+                        )
+                        VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            new_job_id,
+                            slot["ams_slot"],
+                            slot["filament_name"],
+                            slot["material"],
+                            slot["color_hex"],
+                            slot["tray_uuid"],
+                            slot["tray_info_idx"],
+                            slot["first_seen_at"],
+                            slot["last_seen_at"],
+                        ),
+                    )
+                    imported_slots += max(cursor.rowcount, 0)
+
+                usage_rows = source_conn.execute(
+                    "SELECT * FROM filament_usage WHERE print_job_id=? ORDER BY id",
+                    (old_job_id,),
+                ).fetchall()
+                for usage in usage_rows:
+                    if usage_exists(target_conn, new_job_id, usage):
+                        continue
+                    target_conn.execute(
+                        """
+                        INSERT INTO filament_usage (
+                            print_job_id, spool_id, ams_slot, slicer_filament_index,
+                            filament_name, material, color_hex, used_g, source, created_at
+                        )
+                        VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            new_job_id,
+                            usage["ams_slot"],
+                            usage["slicer_filament_index"],
+                            usage["filament_name"],
+                            usage["material"],
+                            usage["color_hex"],
+                            usage["used_g"],
+                            usage["source"],
+                            usage["created_at"],
+                        ),
+                    )
+                    imported_usage += 1
+
+        return {
+            "imported_jobs": imported_jobs,
+            "skipped_jobs": skipped_jobs,
+            "imported_slots": imported_slots,
+            "imported_usage": imported_usage,
+        }
+
 
 def json_dumps_or_none(value: Optional[Sequence[int]]) -> Optional[str]:
     if value is None:
         return None
     return json.dumps(list(value))
+
+
+def usage_exists(conn: sqlite3.Connection, print_job_id: int, usage: sqlite3.Row) -> bool:
+    row = conn.execute(
+        """
+        SELECT 1 FROM filament_usage
+        WHERE print_job_id=?
+          AND COALESCE(ams_slot, -1)=COALESCE(?, -1)
+          AND COALESCE(slicer_filament_index, -1)=COALESCE(?, -1)
+          AND used_g=?
+          AND source=?
+          AND created_at=?
+        LIMIT 1
+        """,
+        (
+            print_job_id,
+            usage["ams_slot"],
+            usage["slicer_filament_index"],
+            usage["used_g"],
+            usage["source"],
+            usage["created_at"],
+        ),
+    ).fetchone()
+    return row is not None
 
 
 def number_or_none(value: Any) -> Optional[float]:

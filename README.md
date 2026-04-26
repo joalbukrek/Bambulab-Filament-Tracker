@@ -218,6 +218,17 @@ bambu-track usage
 bambu-track spools list
 ```
 
+## Merge History From Another Mac
+
+If you moved tracking from one Mac to another, import historical jobs and usage into the current database:
+
+```bash
+bambu-track merge-db /path/to/old/filament.sqlite3
+bambu-track sync-sheets
+```
+
+The merge imports print jobs, observed AMS slots, and usage rows. It does not import active spool assignments from the other Mac, so it will not overwrite the current AMS/spool state on the Mac that is now running the tracker.
+
 ## Google Sheets Sync
 
 The simplest cloud dashboard is Google Sheets via a small Google Apps Script web app. This avoids installing Google API client libraries or storing OAuth tokens on the Mac.

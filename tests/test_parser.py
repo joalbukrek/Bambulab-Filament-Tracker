@@ -92,6 +92,52 @@ class ParserTests(unittest.TestCase):
             spools = store.list_spools()
             self.assertAlmostEqual(spools[0]["remaining_weight_g"], 750.0)
 
+    def test_merge_history_imports_jobs_and_usage_without_spool_assignments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = Store(root / "source.sqlite3")
+            target = Store(root / "target.sqlite3")
+            source_spool_id = source.add_spool(
+                "Old Red PLA",
+                material="PLA",
+                color_hex="FF0000",
+                initial_weight_g=1000.0,
+                ams_slot=1,
+            )
+            job_id = source.start_job("TEST", "TEST:task_id:old-1", subtask_name="old cube")
+            source.record_job_ams_slot(job_id, 1)
+            source.add_usage(
+                print_job_id=job_id,
+                spool_id=source_spool_id,
+                ams_slot=1,
+                slicer_filament_index=0,
+                filament_name="Old Red PLA",
+                material="PLA",
+                color_hex="FF0000",
+                used_g=12.5,
+                source="bambu_cloud",
+            )
+            source.finish_job(job_id, "finished", total_used_g=12.5, usage_source="bambu_cloud")
+
+            result = target.merge_history_from(root / "source.sqlite3")
+
+            self.assertEqual(result["imported_jobs"], 1)
+            self.assertEqual(result["imported_usage"], 1)
+            self.assertEqual(target.list_spools(), [])
+            jobs = target.list_jobs()
+            self.assertEqual(len(jobs), 1)
+            self.assertEqual(jobs[0]["subtask_name"], "old cube")
+            usage = target.list_usage()
+            self.assertEqual(len(usage), 1)
+            self.assertIsNone(usage[0]["spool_id"])
+            self.assertEqual(usage[0]["filament_name"], "Old Red PLA")
+            self.assertAlmostEqual(usage[0]["used_g"], 12.5)
+
+            second = target.merge_history_from(root / "source.sqlite3")
+            self.assertEqual(second["imported_jobs"], 0)
+            self.assertEqual(second["skipped_jobs"], 1)
+            self.assertEqual(second["imported_usage"], 0)
+
     def test_mqtt_ams_metadata_creates_printer_spool_and_records_job_slot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(Path(tmp) / "filament.sqlite3")

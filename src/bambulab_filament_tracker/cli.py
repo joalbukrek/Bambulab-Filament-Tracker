@@ -151,6 +151,10 @@ def build_parser() -> argparse.ArgumentParser:
     usage_add_parser.add_argument("--replace-existing", action="store_true")
     usage_add_parser.set_defaults(func=cmd_add_usage)
 
+    merge_parser = subparsers.add_parser("merge-db", help="Import historical jobs and usage from another tracker database")
+    merge_parser.add_argument("source_db", help="Path to the source filament.sqlite3 database")
+    merge_parser.set_defaults(func=cmd_merge_db)
+
     sync_parser = subparsers.add_parser("sync-sheets", help="Sync current local data to Google Sheets")
     sync_parser.add_argument("--env-file", default=".env", help="Path to .env config")
     sync_parser.set_defaults(func=cmd_sync_sheets)
@@ -596,6 +600,20 @@ def cmd_add_usage(args: argparse.Namespace) -> int:
     store = Store(resolve_db_path(args))
     usage_id = store.add_manual_job_usage(args.job_id, args.grams, replace_existing=args.replace_existing)
     print("Recorded usage %s for job %s" % (usage_id, args.job_id))
+    return 0
+
+
+def cmd_merge_db(args: argparse.Namespace) -> int:
+    source = Path(args.source_db).expanduser()
+    if not source.exists():
+        print("Source database does not exist: %s" % source)
+        return 1
+    store = Store(resolve_db_path(args))
+    result = store.merge_history_from(source)
+    print(
+        "Merged history: imported_jobs={imported_jobs} skipped_jobs={skipped_jobs} "
+        "imported_slots={imported_slots} imported_usage={imported_usage}".format(**result)
+    )
     return 0
 
 
