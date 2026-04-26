@@ -250,9 +250,9 @@ bambu-track stop-service
 bambu-track start-service
 ```
 
-The Google Sheet will be rewritten with four tabs: `AMS Slots`, `Spools`, `Print Jobs`, and `Usage`. Timestamps are exported in Turkey time (`Europe/Istanbul`). Hex colors are exported as text so values like `000000` keep their leading zeros.
+The Google Sheet will use four tabs: `AMS Slots`, `Spools`, `Print Jobs`, and `Usage`. Sync appends new unique rows to the bottom of each tab instead of clearing old rows. Timestamps are exported in Turkey time (`Europe/Istanbul`). Hex colors are exported as text so values like `000000` keep their leading zeros.
 
-Treat Google Sheets as a dashboard. Manual edits in the sheet are overwritten by the next sync. Update spool weights through `bambu-track`, then run `bambu-track sync-sheets` if you want the sheet updated immediately.
+Treat Google Sheets as an append-only log. If a local row changes later, such as a job moving from `RUNNING` to `FINISH` or a spool's remaining weight changing, a new row is appended and the old row is preserved. Update spool weights through `bambu-track`, then run `bambu-track sync-sheets` if you want the sheet updated immediately.
 
 If the printer screen shows grams but MQTT does not expose that value, record the screen value manually for the captured job:
 
